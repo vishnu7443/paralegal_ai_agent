@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Download, AlertTriangle } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 interface PDFExportButtonProps {
   jobId: string;
@@ -15,7 +16,7 @@ export default function PDFExportButton({ jobId }: PDFExportButtonProps) {
     setDownloading(true);
     setError(null);
     try {
-      const url = `http://localhost:8000/api/report/${jobId}/pdf`;
+      const url = `${API_BASE_URL}/report/${jobId}/pdf`;
       const response = await fetch(url);
       
       if (!response.ok) {

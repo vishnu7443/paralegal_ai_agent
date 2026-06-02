@@ -10,7 +10,7 @@ import PDFExportButton from "../../components/PDFExportButton";
 import RiskTable from "../../components/RiskTable";
 import ClauseHeatmap from "../../components/ClauseHeatmap";
 import { useSSE } from "../../hooks/useSSE";
-import { getAnalysisReport, getJobClauses, searchDocument } from "../../lib/api";
+import { getAnalysisReport, getJobClauses, searchDocument, API_BASE_URL } from "../../lib/api";
 import { Clause } from "../../lib/types";
 import confetti from "canvas-confetti";
 
@@ -47,6 +47,7 @@ function DashboardContent() {
     if (!jobId) return;
 
     async function checkJobStatus() {
+      if (!jobId) return;
       try {
         const data = await getAnalysisReport(jobId);
         setDocumentId(data.document_id);
@@ -189,7 +190,7 @@ function DashboardContent() {
             <StreamingReport
               markdown={reportMarkdown}
               isComplete={isComplete}
-              onDownloadPdf={() => window.open(`http://localhost:8000/api/report/${jobId}/pdf`)}
+              onDownloadPdf={() => window.open(`${API_BASE_URL}/report/${jobId}/pdf`)}
             />
 
             {/* Display detailed RiskTable and Heatmap view side-by-side once analysis completes */}

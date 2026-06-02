@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AgentLog } from "../lib/types";
+import { API_BASE_URL } from "../lib/api";
 
 export function useSSE(jobId: string | null) {
   const [logs, setLogs] = useState<AgentLog[]>([]);
@@ -21,7 +22,8 @@ export function useSSE(jobId: string | null) {
 
     // Proxy SSE route through Next.js or connect directly to FastAPI
     // Since CORS is enabled on FastAPI, direct connection works flawlessly
-    const sseUrl = `http://localhost:8000/api/stream/${jobId}`;
+    const sseUrl = `${API_BASE_URL}/stream/${jobId}`;
+
     console.log(`[useSSE] Subscribing to SSE channel at: ${sseUrl}`);
     
     const eventSource = new EventSource(sseUrl);

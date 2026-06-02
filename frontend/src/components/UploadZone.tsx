@@ -27,7 +27,7 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
   };
 
   const processFile = async (file: File) => {
-    if (!file.name.endswith(".pdf")) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
       setError("Only PDF files are supported.");
       return;
     }

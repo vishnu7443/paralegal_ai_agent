@@ -1,4 +1,18 @@
-const API_BASE_URL = "http://localhost:8000/api";
+const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== "undefined") {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return "http://localhost:8000/api";
+    }
+    return `${window.location.origin}/_/backend/api`;
+  }
+  return "http://localhost:8000/api";
+};
+
+export const API_BASE_URL = getApiBaseUrl();
+
 
 export async function uploadDocument(file: File) {
   const formData = new FormData();
