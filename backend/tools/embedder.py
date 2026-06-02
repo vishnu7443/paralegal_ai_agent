@@ -1,15 +1,10 @@
 import os
 import logging
-from sentence_transformers import SentenceTransformer
+import hashlib
+import numpy as np
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
-
-# Define local cache directory for the sentence-transformer models
-MODEL_CACHE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-    "db", "models"
-)
-os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
 class DocumentEmbedder:
     _instance = None
@@ -24,35 +19,90 @@ class DocumentEmbedder:
         if self._initialized:
             return
         
-        self.model_name = "all-MiniLM-L6-v2"
-        logger.info(f"Initializing Embedder: Loading model '{self.model_name}' (Cache Dir: {MODEL_CACHE_DIR})...")
+        self.model_name = "models/text-embedding-004"
+        self.dimension = 768
         
-        # Enforce local caching in the project directory
-        self.model = SentenceTransformer(self.model_name, cache_folder=MODEL_CACHE_DIR)
-        self.dimension = self.model.get_sentence_embedding_dimension()
+        # Check if we have a valid Gemini API Key
+        api_key = os.getenv("GEMINI_API_KEY")
+        self.use_gemini = bool(api_key and api_key != "mock_key" and api_key != "your_gemini_api_key_here")
         
-        logger.info(f"Model '{self.model_name}' loaded successfully. Embedding dimension: {self.dimension}")
+        if self.use_gemini:
+            logger.info(f"Initializing Embedder: Using Google Gemini API model '{self.model_name}' (Dimension: {self.dimension})")
+            genai.configure(api_key=api_key)
+        else:
+            logger.info(f"Initializing Embedder: API key not set or mock. Using deterministic NumPy generator (Dimension: {self.dimension})")
+            
         self._initialized = True
+
+    def _generate_mock_vector(self, text: str) -> list[float]:
+        """Generates a deterministic pseudorandom vector for a given text."""
+        h = hashlib.sha256(text.encode('utf-8')).digest()
+        seed = int.from_bytes(h[:4], byteorder='big')
+        rng = np.random.default_rng(seed)
+        vector = rng.standard_normal(self.dimension)
+        norm = np.linalg.norm(vector)
+        if norm > 0:
+            vector = vector / norm
+        return vector.tolist()
 
     def embed_texts(self, texts: list[str]) -> list:
         """
         Generates list of embeddings for the input texts.
-        Returns a list of numpy arrays (or list of floats).
         """
         if not texts:
             return []
-        
-        logger.info(f"Generating embeddings for {len(texts)} chunks...")
-        embeddings = self.model.encode(texts, show_progress_bar=False)
-        return embeddings.tolist()
+            
+        # Re-check API key at runtime in case it was loaded late (e.g. from dotenv)
+        if not self.use_gemini:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key and api_key != "mock_key" and api_key != "your_gemini_api_key_here":
+                self.use_gemini = True
+                genai.configure(api_key=api_key)
+                logger.info(f"Runtime Embedder: Activating Google Gemini API model '{self.model_name}'")
+
+        if self.use_gemini:
+            try:
+                logger.info(f"Generating Gemini embeddings for {len(texts)} chunks...")
+                # Call Gemini API
+                result = genai.embed_content(
+                    model=self.model_name,
+                    content=texts,
+                    task_type="retrieval_document"
+                )
+                # API returns list of floats in 'embedding'
+                return result['embedding']
+            except Exception as e:
+                logger.error(f"Gemini embedding API failed: {e}. Falling back to mock embeddings...")
+
+        # Fallback to deterministic mock
+        return [self._generate_mock_vector(t) for t in texts]
 
     def embed_query(self, query: str) -> list:
         """
         Generates embedding for a single query text.
         """
-        logger.debug(f"Generating query embedding: '{query[:50]}'")
-        embedding = self.model.encode(query, show_progress_bar=False)
-        return embedding.tolist()
+        if not query:
+            return [0.0] * self.dimension
+            
+        if not self.use_gemini:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key and api_key != "mock_key" and api_key != "your_gemini_api_key_here":
+                self.use_gemini = True
+                genai.configure(api_key=api_key)
+                logger.info(f"Runtime Embedder: Activating Google Gemini API model '{self.model_name}'")
+
+        if self.use_gemini:
+            try:
+                result = genai.embed_content(
+                    model=self.model_name,
+                    content=query,
+                    task_type="retrieval_query"
+                )
+                return result['embedding']
+            except Exception as e:
+                logger.error(f"Gemini query embedding failed: {e}. Falling back to mock query embedding...")
+
+        return self._generate_mock_vector(query)
 
 # Global singleton instance for app-wide reuse
 embedder = DocumentEmbedder()
